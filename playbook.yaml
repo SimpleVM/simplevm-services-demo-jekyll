@@ -4,7 +4,7 @@
   become: true
 
   vars:
-    repo_url: "https://github.com/milo39/jekyll-demo.git"
+    repo_url: "https://github.com/SimpleVM/simplevm-services-demo-jekyll.git"
     repo_dest: "/home/{{ ansible_user }}/jekyll-demo"
     repo_version: "master"
     app_port: 3838
