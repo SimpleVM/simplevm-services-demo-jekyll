@@ -5,77 +5,112 @@
 
   vars:
     repo_url: "https://github.com/SimpleVM/simplevm-services-demo-jekyll.git"
-    repo_dest: "/home/{{ ansible_user }}/jekyll-demo"
     repo_version: "master"
+
     app_port: 3838
+    base_url: "/jekyll_100"
+
+    build_user: "{{ ansible_user }}"
+
+    base_dir: "/srv/jekyll-demo"
+    repo_dir: "{{ base_dir }}/repo"
+    app_dir: "{{ repo_dir }}/app"
+    site_dir: "{{ base_dir }}/site"
+    build_dir: "{{ site_dir }}/{{ base_url }}"
 
   tasks:
-    - name: Update apt cache
-      ansible.builtin.apt:
-        update_cache: true
-
-    - name: Install Ruby and build dependencies
+    - name: Install system dependencies
       ansible.builtin.apt:
         name:
           - ruby-full
           - build-essential
           - zlib1g-dev
+          - nginx
+          - git
         state: present
+        update_cache: true
+        lock_timeout: 120
 
-    - name: Ensure GEM_HOME export exists in .bashrc
-      become: false
-      ansible.builtin.lineinfile:
-        path: "/home/{{ ansible_user }}/app/.bashrc"
-        line: 'export GEM_HOME="$HOME/gems"'
-        create: true
+    - name: Create application directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ build_user }}"
+        group: "{{ build_user }}"
+        mode: "0755"
+      loop:
+        - "{{ base_dir }}"
+        - "{{ site_dir }}"
 
-    - name: Ensure gems bin path export exists in .bashrc
-      become: false
-      ansible.builtin.lineinfile:
-        path: "/home/{{ ansible_user }}/app/.bashrc"
-        line: 'export PATH="$HOME/gems/bin:$PATH"'
-        create: true
-
-    - name: Clone or update Jekyll repository
-      become: false
+    - name: Clone Jekyll repository
+      become: true
+      become_user: "{{ build_user }}"
       ansible.builtin.git:
         repo: "{{ repo_url }}"
-        dest: "{{ repo_dest }}"
+        dest: "{{ repo_dir }}"
         version: "{{ repo_version }}"
         update: true
         force: true
 
-    - name: Install bundler and jekyll into user gem home
-      become: false
-      ansible.builtin.shell: |
-        export GEM_HOME="$HOME/gems"
-        export PATH="$HOME/gems/bin:$PATH"
-        gem install bundler jekyll
-      args:
-        executable: /bin/bash
+    - name: Install Bundler
+      community.general.gem:
+        name: bundler
+        version: "4.0.8"
+        state: present
+        user_install: false
 
-    - name: Install project gems with bundler
-      become: false
-      ansible.builtin.shell: |
-        export GEM_HOME="$HOME/gems"
-        export PATH="$HOME/gems/bin:$PATH"
-        bundle install
-      args:
-        chdir: "{{ repo_dest }}/app"
-        executable: /bin/bash
+    - name: Configure Bundler install path
+      become: true
+      become_user: "{{ build_user }}"
+      ansible.builtin.command:
+        cmd: /usr/local/bin/bundle config set --local path vendor/bundle
+        chdir: "{{ app_dir }}"
 
-    - name: Stop running Jekyll process if present
-      ansible.builtin.shell: |
-        pkill -f "bundle exec [j]ekyll serve" || true
-      changed_when: false
+    - name: Install project gems
+      become: true
+      become_user: "{{ build_user }}"
+      ansible.builtin.command:
+        cmd: /usr/local/bin/bundle install
+        chdir: "{{ app_dir }}"
 
-    - name: Start Jekyll in background on port 4000
-      become: false
-      ansible.builtin.shell: |
-        export GEM_HOME="$HOME/gems"
-        export PATH="$HOME/gems/bin:$PATH"
-        nohup bundle exec jekyll serve --host 0.0.0.0 --port {{ app_port }} \
-          > "{{ repo_dest }}/jekyll.log" 2>&1 &
-      args:
-        chdir: "{{ repo_dest }}/app"
-        executable: /bin/bash
+    - name: Build static Jekyll site
+      become: true
+      become_user: "{{ build_user }}"
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/bin/bundle exec jekyll build
+          --baseurl {{ base_url }}
+          --destination {{ build_dir }}
+        chdir: "{{ app_dir }}"
+
+    - name: Deploy Nginx configuration
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/jekyll-demo
+        mode: "0644"
+      notify: Reload Nginx
+
+    - name: Enable Jekyll site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/jekyll-demo
+        dest: /etc/nginx/sites-enabled/jekyll-demo
+        state: link
+      notify: Reload Nginx
+
+    - name: Remove default Nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload Nginx
+
+    - name: Ensure Nginx is enabled and running
+      ansible.builtin.service:
+        name: nginx
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reload Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
