@@ -6,8 +6,9 @@
   vars:
     repo_url: "https://github.com/SimpleVM/simplevm-services-demo-jekyll.git"
     repo_dest: "/home/{{ ansible_user }}/jekyll-demo"
-    repo_version: "master"
+    repo_version: "main"
     app_port: 3838
+    base_url: "/jekyll_100"
 
   tasks:
     - name: Update apt cache
@@ -69,12 +70,13 @@
         pkill -f "bundle exec [j]ekyll serve" || true
       changed_when: false
 
-    - name: Start Jekyll in background on port 4000
+    - name: Start Jekyll in background
       become: false
       ansible.builtin.shell: |
         export GEM_HOME="$HOME/gems"
         export PATH="$HOME/gems/bin:$PATH"
         nohup bundle exec jekyll serve --host 0.0.0.0 --port {{ app_port }} \
+          --baseurl "{{ base_url }}" \
           > "{{ repo_dest }}/jekyll.log" 2>&1 &
       args:
         chdir: "{{ repo_dest }}/app"
