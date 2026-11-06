@@ -12,6 +12,11 @@ To deploy to a remote VM, create an `inventory.ini` file specifying the target h
 ansible-playbook playbook.yaml -i inventory.ini
 ```
 
+The playbook uses a default base URL of `/jekyll_100`. To override it for a different subpath:
+```
+ansible-playbook playbook.yaml -i inventory.ini -e base_url=/mein_instanz_pfad
+```
+
 ---
 ---
 
@@ -26,7 +31,7 @@ After a new VM has been created, the included Ansible playbook can be used to:
 
 - install the required software
 - build the static webpages
-- start the web server application on port `3838`
+- start the web server application on port `3838` (base URL configurable via `-e base_url=...`)
 
 This makes it possible to quickly provision a fresh machine and make the example application available with minimal manual setup.
 

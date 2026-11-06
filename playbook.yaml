@@ -6,8 +6,9 @@
   vars:
     repo_url: "https://github.com/SimpleVM/simplevm-services-demo-jekyll.git"
     repo_dest: "/home/{{ ansible_user }}/jekyll-demo"
-    repo_version: "fix/deployment"
+    repo_version: "main"
     app_port: 3838
+    base_url: "/jekyll_100"
 
   tasks:
     - name: Update apt cache
@@ -75,6 +76,7 @@
         export GEM_HOME="$HOME/gems"
         export PATH="$HOME/gems/bin:$PATH"
         nohup bundle exec jekyll serve --host 0.0.0.0 --port {{ app_port }} \
+          --baseurl "{{ base_url }}" \
           > "{{ repo_dest }}/jekyll.log" 2>&1 &
       args:
         chdir: "{{ repo_dest }}/app"
