@@ -26,9 +26,15 @@ After a new VM has been created, the included Ansible playbook can be used to:
 
 - install the required software
 - build the static webpages
-- start the web server application on port `3838`
+- serve them with Nginx on port `3838` under a subpath
 
 This makes it possible to quickly provision a fresh machine and make the example application available with minimal manual setup.
+
+By default the app is served under the subpath `/jekyll_100`. The playbook automatically reads the subpath from the SimpleVM metadata, if metadata propagation is active (`location_url` in `/etc/simplevm/metadata.json`). To override it manually, pass `location_url` via `-e`:
+
+```
+ansible-playbook playbook.yaml -i inventory.ini -e "location_url=/jekyll_42"
+```
 
 ## How it Works
 

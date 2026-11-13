@@ -5,10 +5,10 @@
 
   vars:
     repo_url: "https://github.com/SimpleVM/simplevm-services-demo-jekyll.git"
-    repo_version: "master"
+    repo_version: "fix/deployment"
 
     app_port: 3838
-    base_url: "/jekyll_100"
+    location_url: "/jekyll_100"
 
     build_user: "{{ ansible_user }}"
 
@@ -16,9 +16,27 @@
     repo_dir: "{{ base_dir }}/repo"
     app_dir: "{{ repo_dir }}/app"
     site_dir: "{{ base_dir }}/site"
-    build_dir: "{{ site_dir }}/{{ base_url }}"
+    build_dir: "{{ site_dir }}/{{ location_url }}"
 
   tasks:
+    # 1. Metadaten aktualisieren
+    - name: Fetch latest SimpleVM metadata
+      ansible.builtin.shell: bash /etc/simplevm/utils/get_metadata.sh
+      changed_when: true
+
+    # 2. location_url aus der JSON lesen (mit Fallback, bricht nicht ab)
+    - name: Read location_url from metadata.json
+      ansible.builtin.set_fact:
+        location_url_from_metadata: "{{ (lookup('file', '/etc/simplevm/metadata.json', errors='ignore') | default('', true) | from_json | default({})).location_url | default(omit) }}"
+
+    # 3. location_url aus Metadata verwenden – nur wenn User kein -e gesetzt hat
+    - name: Use location_url from metadata as subpath
+      ansible.builtin.set_fact:
+        location_url: "{{ location_url_from_metadata }}"
+      when:
+        - location_url_from_metadata is defined
+        - location_url == "/jekyll_100"  # Default-Wert aus vars:
+
     - name: Install system dependencies
       ansible.builtin.apt:
         name:
@@ -79,7 +97,7 @@
       ansible.builtin.command:
         cmd: >
           /usr/local/bin/bundle exec jekyll build
-          --baseurl {{ base_url }}
+          --baseurl {{ location_url }}
           --destination {{ build_dir }}
         chdir: "{{ app_dir }}"
 
