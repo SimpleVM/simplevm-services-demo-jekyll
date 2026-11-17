@@ -2,7 +2,7 @@
 
 **PREREQUISITES:**
 
-- Ansible Core. Install on the target VM:
+- Ansible Core on your control node or target if you deploy locally.
   ```
   sudo apt update && sudo apt upgrade -y && sudo apt install -y ansible-core
   ```
@@ -11,19 +11,19 @@
 
 To deploy the application to the local machine for testing:
 ```
-ansible-playbook playbook.yaml -i inventory_localhost.ini -e "location_url=jekyll_100"
+ansible-playbook playbook.yaml -i inventory_localhost.ini
 ```
 
 To deploy to a remote VM, create an `inventory.ini` file specifying the target hosts and run:
 ```
-ansible-playbook playbook.yaml -i inventory.ini -e "location_url=jekyll_100"
+ansible-playbook playbook.yaml -i inventory.ini
 ```
 
 By default the playbook reads the subpath from the SimpleVM metadata
 (`location_url` in `/etc/simplevm/metadata.json`).
 To override it manually, pass `location_url` via `-e`:
 ```
-ansible-playbook playbook.yaml -i inventory.ini -e "location_url=jekyll_42"
+ansible-playbook playbook.yaml -i inventory.ini -e location_url="jekyll_100"
 ```
 
 ---
@@ -52,7 +52,7 @@ The deployment process is straightforward:
 3. Run the ansible playbook.
 4. Access the web site!
 
-Once deployed, the application can be accessed through the corresponding link provided in **SimpleVM**, for example through the **Research Environment** section.
+Once deployed, the application can be accessed through the corresponding link provided in **SimpleVM**, for example through the **Web Service** section.
 
 ## Notes
 
