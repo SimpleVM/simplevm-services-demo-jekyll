@@ -5,7 +5,7 @@
 
   vars:
     repo_url: "https://github.com/SimpleVM/simplevm-services-demo-jekyll.git"
-    repo_version: "fix/deployment"
+    repo_version: "master"
 
     app_port: 3838
     location_url: ""
