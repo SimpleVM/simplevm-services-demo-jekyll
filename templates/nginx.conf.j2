@@ -1,8 +1,5 @@
 server {
     listen {{ app_port }};
-    listen [::]:{{ app_port }};
-
-    index index.html;
 
     location /{{ location_url }} {
         alias /srv/jekyll-demo/site/;

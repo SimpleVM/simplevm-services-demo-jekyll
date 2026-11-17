@@ -10,13 +10,10 @@
     app_port: 3838
     location_url: ""
 
-    build_user: "{{ ansible_user }}"
-
     base_dir: "/srv/jekyll-demo"
     repo_dir: "{{ base_dir }}/repo"
     app_dir: "{{ repo_dir }}/app"
     site_dir: "{{ base_dir }}/site"
-    build_dir: "{{ site_dir }}/{{ location_url }}/"
 
   pre_tasks:
     - name: Check if location_url was passed via -e
@@ -35,11 +32,13 @@
           - jq
         state: present
         update_cache: true
+        cache_valid_time: 3600
         lock_timeout: 120
 
     - name: Fetch latest SimpleVM metadata
       ansible.builtin.shell: bash /etc/simplevm/utils/get_metadata.sh
       changed_when: false
+      failed_when: false
       when: not location_url_from_cli
 
     - name: Read location_url from metadata.json
@@ -47,7 +46,6 @@
       register: location_url_raw
       changed_when: false
       failed_when: false
-      become: true
       when: not location_url_from_cli
 
     - name: Use location_url from metadata as subpath
@@ -67,27 +65,7 @@
           or ensure /etc/simplevm/metadata.json contains a location_url field.
         success_msg: "location_url='{{ location_url }}'"
 
-    - name: Create application directories
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        owner: "{{ build_user }}"
-        group: "{{ build_user }}"
-        mode: "0755"
-      loop:
-        - "{{ base_dir }}"
-        - "{{ site_dir }}"
-
-    - name: Clean build directory
-      ansible.builtin.file:
-        path: "{{ build_dir }}"
-        state: absent
-      become: true
-      become_user: "{{ build_user }}"
-
     - name: Clone Jekyll repository
-      become: true
-      become_user: "{{ build_user }}"
       ansible.builtin.git:
         repo: "{{ repo_url }}"
         dest: "{{ repo_dir }}"
@@ -95,39 +73,20 @@
         update: true
         force: true
 
-    - name: Install Bundler
-      community.general.gem:
-        name: bundler
-        version: "4.0.8"
-        state: present
-        user_install: false
-
-    - name: Configure Bundler install path
-      become: true
-      become_user: "{{ build_user }}"
-      ansible.builtin.command:
-        cmd: /usr/local/bin/bundle config set --local path vendor/bundle
-        chdir: "{{ app_dir }}"
-      changed_when: false
-
-    - name: Install project gems
-      become: true
-      become_user: "{{ build_user }}"
-      ansible.builtin.command:
-        cmd: /usr/local/bin/bundle install
-        chdir: "{{ app_dir }}"
-      changed_when: false
+    - name: Install bundler and project gems
+      ansible.builtin.shell: |
+        gem install bundler -v 4.0.8 --no-document
+        cd {{ app_dir }}
+        bundle config set --local path vendor/bundle
+        bundle install
 
     - name: Build static Jekyll site
-      become: true
-      become_user: "{{ build_user }}"
       ansible.builtin.command:
         cmd: >
           /usr/local/bin/bundle exec jekyll build
           --baseurl /{{ location_url }}
           --destination {{ site_dir }}
         chdir: "{{ app_dir }}"
-      changed_when: false
 
     - name: Deploy Nginx configuration
       ansible.builtin.template:

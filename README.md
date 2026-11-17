@@ -2,9 +2,9 @@
 
 **PREREQUISITES:**
 
-- Ansible Core on your control node or target if you deploy locally.
+- Ansible Core on your control node (or target if you deploy locally):
   ```
-  sudo apt update && sudo apt upgrade -y && sudo apt install -y ansible-core
+  sudo apt update && sudo apt install -y ansible-core`
   ```
 
 **QUICKSTART:**
@@ -28,10 +28,9 @@ ansible-playbook playbook.yaml -i inventory.ini -e location_url="jekyll_100"
 
 ---
 
-
 This repository contains two main parts:
 
-- an **Jekyll application** located in the `app/` directory
+- a **Jekyll application** located in the `app/` directory
 - an **Ansible playbook** used to deploy that application to a virtual machine
 
 The purpose of this repository is to provide a simple example of how an **Jekyll app** can be deployed automatically to a newly created instance.
