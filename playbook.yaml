@@ -18,6 +18,11 @@
     site_dir: "{{ base_dir }}/site"
     build_dir: "{{ site_dir }}/{{ location_url }}/"
 
+  pre_tasks:
+    - name: Check if location_url was passed via -e
+      ansible.builtin.set_fact:
+        location_url_from_cli: "{{ location_url != '' }}"
+
   tasks:
     - name: Install Ruby, Nginx and build dependencies
       ansible.builtin.apt:
@@ -35,19 +40,23 @@
     - name: Fetch latest SimpleVM metadata
       ansible.builtin.shell: bash /etc/simplevm/utils/get_metadata.sh
       changed_when: false
+      when: not location_url_from_cli
 
     - name: Read location_url from metadata.json
       ansible.builtin.shell: jq -r '.location_url // empty' /etc/simplevm/metadata.json 2>/dev/null
       register: location_url_raw
       changed_when: false
       failed_when: false
+      become: true
+      when: not location_url_from_cli
 
     - name: Use location_url from metadata as subpath
       ansible.builtin.set_fact:
         location_url: "{{ location_url_raw.stdout }}"
       when:
+        - not location_url_from_cli
+        - location_url_raw is defined
         - location_url_raw.stdout | length > 0
-        - location_url == ""
 
     - name: Ensure location_url is set
       ansible.builtin.assert:
@@ -57,6 +66,17 @@
           Either pass -e "location_url=<subpath>"
           or ensure /etc/simplevm/metadata.json contains a location_url field.
         success_msg: "location_url='{{ location_url }}'"
+
+    - name: Create application directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ build_user }}"
+        group: "{{ build_user }}"
+        mode: "0755"
+      loop:
+        - "{{ base_dir }}"
+        - "{{ site_dir }}"
 
     - name: Clone Jekyll repository
       become: true
