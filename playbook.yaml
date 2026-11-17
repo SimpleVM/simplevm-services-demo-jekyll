@@ -19,21 +19,6 @@
     build_dir: "{{ site_dir }}/{{ location_url }}/"
 
   tasks:
-    - name: Fetch latest SimpleVM metadata
-      ansible.builtin.shell: bash /etc/simplevm/utils/get_metadata.sh
-      changed_when: false
-
-    - name: Read location_url from metadata.json
-      ansible.builtin.set_fact:
-        location_url_from_metadata: "{{ (lookup('file', '/etc/simplevm/metadata.json', errors='ignore') | default('', true) | from_json | default({})).location_url | default(omit) }}"
-
-    - name: Use location_url from metadata as subpath
-      ansible.builtin.set_fact:
-        location_url: "{{ location_url_from_metadata }}"
-      when:
-        - location_url_from_metadata is defined
-        - location_url == ""  # nur wenn User kein -e übergeben hat
-
     - name: Install Ruby, Nginx and build dependencies
       ansible.builtin.apt:
         name:
@@ -42,9 +27,36 @@
           - zlib1g-dev
           - nginx
           - git
+          - jq
         state: present
         update_cache: true
         lock_timeout: 120
+
+    - name: Fetch latest SimpleVM metadata
+      ansible.builtin.shell: bash /etc/simplevm/utils/get_metadata.sh
+      changed_when: false
+
+    - name: Read location_url from metadata.json
+      ansible.builtin.shell: jq -r '.location_url // empty' /etc/simplevm/metadata.json 2>/dev/null
+      register: location_url_raw
+      changed_when: false
+      failed_when: false
+
+    - name: Use location_url from metadata as subpath
+      ansible.builtin.set_fact:
+        location_url: "{{ location_url_raw.stdout }}"
+      when:
+        - location_url_raw.stdout | length > 0
+        - location_url == ""
+
+    - name: Ensure location_url is set
+      ansible.builtin.assert:
+        that: location_url | length > 0
+        fail_msg: >-
+          location_url is not set.
+          Either pass -e "location_url=<subpath>"
+          or ensure /etc/simplevm/metadata.json contains a location_url field.
+        success_msg: "location_url='{{ location_url }}'"
 
     - name: Clone Jekyll repository
       become: true
