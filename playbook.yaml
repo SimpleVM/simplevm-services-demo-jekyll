@@ -8,7 +8,7 @@
     repo_version: "fix/deployment"
 
     app_port: 3838
-    location_url: "/jekyll_100"
+    location_url: ""
 
     build_user: "{{ ansible_user }}"
 
@@ -16,80 +16,81 @@
     repo_dir: "{{ base_dir }}/repo"
     app_dir: "{{ repo_dir }}/app"
     site_dir: "{{ base_dir }}/site"
-    build_dir: "{{ site_dir }}/{{ location_url }}"
+    build_dir: "{{ site_dir }}/{{ location_url }}/"
 
   tasks:
-    # 1. Metadaten aktualisieren
     - name: Fetch latest SimpleVM metadata
       ansible.builtin.shell: bash /etc/simplevm/utils/get_metadata.sh
       changed_when: true
 
-    # 2. location_url aus der JSON lesen (mit Fallback, bricht nicht ab)
     - name: Read location_url from metadata.json
       ansible.builtin.set_fact:
         location_url_from_metadata: "{{ (lookup('file', '/etc/simplevm/metadata.json', errors='ignore') | default('', true) | from_json | default({})).location_url | default(omit) }}"
 
-    # 3. location_url aus Metadata verwenden – nur wenn User kein -e gesetzt hat
     - name: Use location_url from metadata as subpath
       ansible.builtin.set_fact:
         location_url: "{{ location_url_from_metadata }}"
       when:
         - location_url_from_metadata is defined
-        - location_url == "/jekyll_100"  # Default-Wert aus vars:
 
-    - name: Install system dependencies
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Ruby and build dependencies
       ansible.builtin.apt:
         name:
           - ruby-full
           - build-essential
           - zlib1g-dev
-          - nginx
-          - git
         state: present
-        update_cache: true
-        lock_timeout: 120
 
-    - name: Create application directories
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        owner: "{{ build_user }}"
-        group: "{{ build_user }}"
-        mode: "0755"
-      loop:
-        - "{{ base_dir }}"
-        - "{{ site_dir }}"
+    - name: Ensure GEM_HOME export exists in .bashrc
+      become: false
+      ansible.builtin.lineinfile:
+        path: "/home/{{ ansible_user }}/app/.bashrc"
+        line: 'export GEM_HOME="$HOME/gems"'
+        create: true
 
-    - name: Clone Jekyll repository
-      become: true
-      become_user: "{{ build_user }}"
+    - name: Ensure gems bin path export exists in .bashrc
+      become: false
+      ansible.builtin.lineinfile:
+        path: "/home/{{ ansible_user }}/app/.bashrc"
+        line: 'export PATH="$HOME/gems/bin:$PATH"'
+        create: true
+
+    - name: Clone or update Jekyll repository
+      become: false
       ansible.builtin.git:
         repo: "{{ repo_url }}"
-        dest: "{{ repo_dir }}"
+        dest: "{{ repo_dest }}"
         version: "{{ repo_version }}"
         update: true
         force: true
 
-    - name: Install Bundler
-      community.general.gem:
-        name: bundler
-        version: "4.0.8"
-        state: present
-        user_install: false
+    - name: Install bundler and jekyll into user gem home
+      become: false
+      ansible.builtin.shell: |
+        export GEM_HOME="$HOME/gems"
+        export PATH="$HOME/gems/bin:$PATH"
+        gem install bundler jekyll
+      args:
+        executable: /bin/bash
 
-    - name: Configure Bundler install path
-      become: true
-      become_user: "{{ build_user }}"
-      ansible.builtin.command:
-        cmd: /usr/local/bin/bundle config set --local path vendor/bundle
-        chdir: "{{ app_dir }}"
+    - name: Install project gems with bundler
+      become: false
+      ansible.builtin.shell: |
+        export GEM_HOME="$HOME/gems"
+        export PATH="$HOME/gems/bin:$PATH"
+        bundle install
+      args:
+        chdir: "{{ repo_dest }}/app"
+        executable: /bin/bash
 
-    - name: Install project gems
-      become: true
-      become_user: "{{ build_user }}"
-      ansible.builtin.command:
-        cmd: /usr/local/bin/bundle install
-        chdir: "{{ app_dir }}"
+    - name: Stop running Jekyll process if present
+      ansible.builtin.shell: |
+        pkill -f "bundle exec [j]ekyll serve" || true
+      changed_when: false
 
     - name: Build static Jekyll site
       become: true
