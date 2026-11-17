@@ -1,0 +1,11 @@
+server {
+    listen {{ app_port }};
+    listen [::]:{{ app_port }};
+
+    root /srv/jekyll-demo/site{{ location_url }}/;
+    index index.html;
+
+    location {{ location_url }} {
+        try_files $uri $uri/ =404;
+    }
+}

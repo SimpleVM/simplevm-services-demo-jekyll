@@ -1,25 +1,33 @@
 # Jekyll Demo Deployment Example
 
+**PREREQUISITES:**
+
+- Ansible Core. Install on the target VM:
+  ```
+  sudo apt update && sudo apt upgrade -y && sudo apt install -y ansible-core
+  ```
+
 **QUICKSTART:**
 
 To deploy the application to the local machine for testing:
 ```
-ansible-playbook playbook.yaml -i inventory_localhost.ini
+ansible-playbook playbook.yaml -i inventory_localhost.ini -e "location_url=jekyll_100"
 ```
 
 To deploy to a remote VM, create an `inventory.ini` file specifying the target hosts and run:
 ```
-ansible-playbook playbook.yaml -i inventory.ini
+ansible-playbook playbook.yaml -i inventory.ini -e "location_url=jekyll_100"
 ```
 
-The playbook reads the location URL of your research environment from the metadata of your SimpleVM instance as default.
-To override it for a different subpath use:
+By default the playbook reads the subpath from the SimpleVM metadata
+(`location_url` in `/etc/simplevm/metadata.json`).
+To override it manually, pass `location_url` via `-e`:
 ```
-ansible-playbook playbook.yaml -i inventory.ini -e "base_url=jekyll_100"
+ansible-playbook playbook.yaml -i inventory.ini -e "location_url=jekyll_42"
 ```
 
 ---
----
+
 
 This repository contains two main parts:
 
@@ -32,15 +40,9 @@ After a new VM has been created, the included Ansible playbook can be used to:
 
 - install the required software
 - build the static webpages
-- start the web server application on port `3838` 
+- serve them with Nginx on port `3838` under a subpath
 
 This makes it possible to quickly provision a fresh machine and make the example application available with minimal manual setup.
-
-By default the app is served under the subpath `/jekyll_100`. The playbook automatically reads the subpath from the SimpleVM metadata, if metadata propagation is active (`location_url` in `/etc/simplevm/metadata.json`). To override it manually, pass `location_url` via `-e`:
-
-```
-ansible-playbook playbook.yaml -i inventory.ini -e "location_url=jekyll_42"
-```
 
 ## How it Works
 
